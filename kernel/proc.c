@@ -472,10 +472,6 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
 
-  int mintime;
-  int max_priority;
-  struct proc *chosen;
-  
   c->proc = 0;
 
   #if defined(ROUNDROBIN) 
@@ -503,6 +499,9 @@ scheduler(void)
   #endif
 
   #if defined(FCFS)
+  struct proc *chosen;
+  int mintime;
+
   for (;;) {
     intr_on();
     chosen = 0;
@@ -530,6 +529,9 @@ scheduler(void)
   #endif
 
   #if defined(PBS)
+  struct proc *chosen;
+  int max_priority;
+
   for (;;) {
     intr_on();
     chosen = 0;
@@ -537,7 +539,12 @@ scheduler(void)
     
     for (p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
-      p->niceness = (int)((p->stime * 10.0) / (p->stime + p->rtime));
+      
+      if (p->stime + p->rtime == 0)
+        p->niceness = 5;
+      else 
+        p->niceness = (p->stime * 10) / (p->stime + p->rtime);
+
       int y = p->sp - p->niceness + 5;
       int x = y < 100 ? y : 100;
       p->dp = x > 0 ? x : 0;
@@ -549,9 +556,8 @@ scheduler(void)
     }
 
     if (chosen != 0) {
-      acquire(&chosen->lock);
       for (p = proc; p < &proc[NPROC]; p++) {
-        acquire(&p->lock);
+        // acquire(&p->lock);
         if (p->state == RUNNABLE && p->dp == chosen->dp) {
           if (p->nsch < chosen->nsch){
             chosen = p;
@@ -559,9 +565,9 @@ scheduler(void)
             chosen = p;
           }
         }
-        release(&p->lock);
+        // release(&p->lock);
       }
-
+      acquire(&chosen->lock);
       if (chosen->state == RUNNABLE) {
         chosen->state = RUNNING;
         c->proc = chosen;
