@@ -119,12 +119,6 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
-  p->niceness = 5;
-  p->sp = 60;
-  p->nsch = 0;
-  p->ctime = ticks;
-  p->rtime = 0;
-  p->stime = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -148,6 +142,13 @@ found:
   p->context.sp = p->kstack + PGSIZE;
 
   p->mask = 0;
+  p->niceness = 5;
+  p->sp = 60;
+  p->nsch = 0;
+  p->ctime = ticks;
+  p->rtime = 0;
+  p->etime = 0;
+  p->stime = 0;
 
   return p;
 }
@@ -173,12 +174,13 @@ freeproc(struct proc *p)
   p->xstate = 0;
   p->state = UNUSED;
   p->mask = 0;
-  p->ctime = 0;
-  p->rtime = 0;
-  p->stime = 0;
   p->niceness = 0;
   p->sp = 0;
   p->nsch = 0;
+  p->ctime = 0;
+  p->rtime = 0;
+  p->etime = 0;
+  p->stime = 0;
 }
 
 // Create a user page table for a given process,
@@ -387,6 +389,7 @@ exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+  p->etime = ticks;
 
   release(&wait_lock);
 
@@ -394,6 +397,56 @@ exit(int status)
   sched();
   panic("zombie exit");
 }
+
+int
+waitx(uint64 addr, uint *wtime, uint *rtime)
+{
+  struct proc *np;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(np = proc; np < &proc[NPROC]; np++){
+      if(np->parent == p){
+        // make sure the child isn't still in exit() or swtch().
+        acquire(&np->lock);
+
+        havekids = 1;
+        if(np->state == ZOMBIE){
+          // Found one.
+          pid = np->pid;
+          *rtime = np->rtime;
+          *wtime = np->etime - np->ctime - np->rtime;
+          if(addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate,
+                                  sizeof(np->xstate)) < 0) {
+            release(&np->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          freeproc(np);
+          release(&np->lock);
+          release(&wait_lock);
+          return pid;
+        }
+        release(&np->lock);
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || p->killed){
+      release(&wait_lock);
+      return -1;
+    }
+    
+    // Wait for a child to exit.
+    sleep(p, &wait_lock);  //DOC: wait-sleep
+  }
+}
+
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
@@ -558,15 +611,16 @@ scheduler(void)
     if (chosen != 0) {
       for (p = proc; p < &proc[NPROC]; p++) {
         // acquire(&p->lock);
-        if (p->state == RUNNABLE && p->dp == chosen->dp) {
-          if (p->nsch < chosen->nsch){
-            chosen = p;
-          } else if (p->nsch == chosen->nsch && p->ctime < chosen->ctime){
-            chosen = p;
-          }
-        }
+        if (p->state == RUNNABLE && p->dp == chosen->dp && p->nsch < chosen->nsch)
+          chosen = p;
         // release(&p->lock);
       }
+      
+      for (p = proc; p < &proc[NPROC]; p++) {
+        if (p->state == RUNNABLE && p->dp == chosen->dp && p->nsch == chosen->nsch && p->ctime < chosen->ctime) 
+          chosen = p;
+      }
+
       acquire(&chosen->lock);
       if (chosen->state == RUNNABLE) {
         chosen->state = RUNNING;

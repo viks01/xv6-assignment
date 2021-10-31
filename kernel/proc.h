@@ -109,6 +109,7 @@ struct proc {
   int mask;                    // To trace system calls
   int ctime;                   // process creation time
   int rtime;                   // process running time
+  int etime;                   // process exit time
   int stime;                   // process sleeping time
   int sp;                      // static priority
   int dp;                      // dynamic priority
