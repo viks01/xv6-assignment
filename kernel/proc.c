@@ -815,7 +815,8 @@ procdump(void)
 
   printf("\n");
   #if defined(PBS)
-  printf("PID\tPriority\tName\tState\trtime\twtime\tnrun");
+  // printf("PID\tPriority\tName\tState\trtime\twtime\tnrun");
+  printf("PID\tPriority\tState\t\trtime\twtime\tnrun");
   printf("\n");
   #endif
   for(p = proc; p < &proc[NPROC]; p++){
@@ -833,7 +834,8 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     #endif
     #if defined(PBS)
-    printf("%d\t%d\t\t%s\t%s\t%d\t%d\t%d", p->pid, p->sp, state, p->name, p->rtime, p->etime - p->ctime - p->rtime, p->nsch);
+    // printf("%d\t%d\t\t%s\t%s\t%d\t%d\t%d", p->pid, p->sp, state, p->name, p->rtime, p->etime - p->ctime - p->rtime, p->nsch);
+    printf("%d\t%d\t\t%s\t%d\t%d\t%d", p->pid, p->sp, state, p->rtime, p->etime - p->ctime - p->rtime, p->nsch);
     #endif
     printf("\n");
   }
