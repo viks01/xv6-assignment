@@ -804,16 +804,20 @@ void
 procdump(void)
 {
   static char *states[] = {
-  [UNUSED]    "unused",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+  [UNUSED]    "unused  ",
+  [SLEEPING]  "sleeping",
+  [RUNNABLE]  "runnable",
+  [RUNNING]   "running ",
+  [ZOMBIE]    "zombie  "
   };
   struct proc *p;
   char *state;
 
   printf("\n");
+  #if defined(PBS)
+  printf("PID\tPriority\tName\tState\trtime\twtime\tnrun");
+  printf("\n");
+  #endif
   for(p = proc; p < &proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -821,7 +825,16 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
+
+    #if defined(ROUNDROBIN)
     printf("%d %s %s", p->pid, state, p->name);
+    #endif
+    #if defined(FCFS)
+    printf("%d %s %s", p->pid, state, p->name);
+    #endif
+    #if defined(PBS)
+    printf("%d\t%d\t\t%s\t%s\t%d\t%d\t%d", p->pid, p->sp, state, p->name, p->rtime, p->etime - p->ctime - p->rtime, p->nsch);
+    #endif
     printf("\n");
   }
 }
