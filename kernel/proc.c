@@ -561,7 +561,6 @@ scheduler(void)
     mintime = 2147483647;
 
     for (p = proc; p < &proc[NPROC]; p++) {
-      // acquire(&p->lock);
       if (p->state == RUNNABLE && p->ctime < mintime) {
         chosen = p;
         mintime = p->ctime;
@@ -590,6 +589,7 @@ scheduler(void)
     chosen = 0;
     max_priority = 1000;
     
+    // Check for highest dynamic priority
     for (p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       
@@ -608,19 +608,22 @@ scheduler(void)
       release(&p->lock);
     }
 
+    // Check for lesser number of times scheduled, in case of 
+    // multiple process with same highest dynamic priority
     if (chosen != 0) {
       for (p = proc; p < &proc[NPROC]; p++) {
-        // acquire(&p->lock);
         if (p->state == RUNNABLE && p->dp == chosen->dp && p->nsch < chosen->nsch)
           chosen = p;
-        // release(&p->lock);
       }
       
+      // Check for lesser creation time, in case of multiple processes
+      // with same highest dynamic priority and number of times scheduled
       for (p = proc; p < &proc[NPROC]; p++) {
         if (p->state == RUNNABLE && p->dp == chosen->dp && p->nsch == chosen->nsch && p->ctime < chosen->ctime) 
           chosen = p;
       }
 
+      // Run chosen process by changing cpu context
       acquire(&chosen->lock);
       if (chosen->state == RUNNABLE) {
         chosen->state = RUNNING;
